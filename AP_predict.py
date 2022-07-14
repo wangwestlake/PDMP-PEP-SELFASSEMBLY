@@ -11,13 +11,6 @@ import pandas as pd
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def input_max_len(feature):
-    src_len = 0 # enc_input max sequence length
-    for i in range(len(feature)):
-        if len(feature[i])>src_len:
-            src_len = len(feature[i])
-    return src_len
-
 src_len = 10
 
 src_vocab = {'Empty':0, 'A': 1, 'C': 2,'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8, 
@@ -241,7 +234,7 @@ class Classifier(nn.Module):
 
 class TRN(nn.Module):
     def __init__(self):
-        super(Transformer,self).__init__()
+        super(TRN,self).__init__()
         self.encoder = Encoder().to(device)
         self.decoder = Classifier(src_len*d_model).to(device)
 
@@ -251,9 +244,6 @@ class TRN(nn.Module):
         :param dec_inputs: [batch_size, tgt_len]
         :return:
         '''
-
-        # enc_outputs: [batch_size, src_len, d_model],
-        # enc_self_attns: [n_layers, batch_size, n_heads, src_len, src_len]
         enc_outputs,enc_self_attns = self.encoder(enc_inputs)
 
         dec_inputs = torch.reshape(enc_outputs,(enc_outputs.shape[0],-1)) 
