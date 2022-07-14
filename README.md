@@ -1,7 +1,7 @@
 # PDMP-PEP-SELFASSEMBLY
 TRN trained models of AP values of penta-, deca-, and mixed pentapeptides
 
-## User Manual
+## How to Use
 
 The trained TRN model _'model_TRN.pt'_ can be accessed from the following link:
 
