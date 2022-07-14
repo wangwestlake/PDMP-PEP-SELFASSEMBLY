@@ -9,8 +9,7 @@ import random
 
 import pandas as pd
 
-device = 'cuda:7' if torch.cuda.is_available() else 'cpu'
-# device = 'cpu'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def input_max_len(feature):
     src_len = 0 # enc_input max sequence length
@@ -30,13 +29,9 @@ def make_data(features,src_len):
     enc_inputs = []
     for i in range(len(features)):
         enc_input = [[src_vocab[n] for n in list(features[i])]]
-
         while len(enc_input[0])<src_len:
             enc_input[0].append(0)
-
         enc_inputs.extend(enc_input)
-
-
     return torch.LongTensor(enc_inputs)
 
 
@@ -65,13 +60,13 @@ class PositionalEncoding(nn.Module):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
-        pe = torch.zeros(max_len, d_model)  # [max_len, d_model]
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)  # [max_len,1], pos向量
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1) 
         # div_term [d_model/2]
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))  # 10000^{2i/d_model}
-        pe[:, 0::2] = torch.sin(position * div_term)  # 偶数位赋值 [max_len,d_model/2]
-        pe[:, 1::2] = torch.cos(position * div_term)  # 技术位赋值 [max_Len,d_model/2]
-        pe = pe.unsqueeze(0).transpose(0, 1)  # [max_len,1,d_model]
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model)) 
+        pe[:, 0::2] = torch.sin(position * div_term) 
+        pe[:, 1::2] = torch.cos(position * div_term) 
+        pe = pe.unsqueeze(0).transpose(0, 1) 
         self.register_buffer('pe', pe)
 
     def forward(self, x):
@@ -79,7 +74,7 @@ class PositionalEncoding(nn.Module):
         :param x: [seq_len, batch_size, d_model]
         :return:
         '''
-        x = x + self.pe[:x.size(0), :] # 直接将pos_embedding 和 vocab_embedding相加
+        x = x + self.pe[:x.size(0), :]
         return self.dropout(x)
 
 
@@ -94,7 +89,6 @@ def get_attn_pad_mask(seq_q, seq_k):
     batch_size, len_q = seq_q.size()
     batch_size, len_k = seq_k.size()
     #eq(zero) is PAD token
-    # 举个例子，输入为 seq_data = [1, 2, 3, 4, 0]，seq_data.data.eq(0) 就会返回 [False, False, False, False, True]
     pad_attn_mask = seq_k.data.eq(0).unsqueeze(1)  # [batch_size, 1, len_k], True is masked
     return pad_attn_mask.expand(batch_size, len_q, len_k)  # [batch_size, len_q, len_k]
 
@@ -147,7 +141,6 @@ class MultiHeadAttention(nn.Module):
         residual, batch_size = input_Q, input_Q.size(0)
         # (B,S,D) - proj -> (B,S,D_new) -split -> (B, S, H, W) -> trans -> (B,H,S,W)
 
-        # 分解为MultiHead Attention
         Q = self.W_Q(input_Q).view(batch_size,-1, n_heads, d_k).transpose(1,2) # Q:[batch_size, n_heads, len_q, d_k]
         K = self.W_K(input_K).view(batch_size,-1, n_heads, d_k).transpose(1,2) # K:[batch_size, n_heads, len_k, d_k]
         V = self.W_V(input_V).view(batch_size,-1, n_heads, d_v).transpose(1,2) # V:[batch_size, n_heads, len_v(=len_k, d_v]
@@ -180,8 +173,6 @@ class PoswiseFeedForwardNet(nn.Module):
         residual = inputs
         output = self.fc(inputs)
         return nn.LayerNorm(d_model).to(device)(output+residual) #[batch_size, seq_len, d_model]
-
-
 
 class EncoderLayer(nn.Module):
     def __init__(self):
@@ -234,35 +225,21 @@ class Classifier(nn.Module):
         self.e3 = nn.Linear(hidden_layer[1], hidden_layer[2])
         self.e4 = nn.Linear(hidden_layer[2], hidden_layer[3])
         self.e5 = nn.Linear(hidden_layer[3], hidden_layer[4])
-
-        self.dropout = nn.Dropout(p=0.3)
         self.batchnorm0 = nn.BatchNorm1d(hidden_layer[0])
         self.batchnorm1 = nn.BatchNorm1d(hidden_layer[1])
         self.batchnorm2 = nn.BatchNorm1d(hidden_layer[2])
         self.batchnorm3 = nn.BatchNorm1d(hidden_layer[3])
-
         self.sigmoid = nn.Sigmoid()
+        
     def forward(self,dec_input):
-
-        # dec_input = self.dropout(dec_input)
         h_1 = F.leaky_relu(self.batchnorm0(self.e1(dec_input)), negative_slope=0.05, inplace=True)
-        # h_1 = F.leaky_relu(self.e1(dec_input), negative_slope=0.1, inplace=True)
-        h_1 = self.dropout(h_1)
         h_2 = F.leaky_relu(self.batchnorm1(self.e2(h_1)), negative_slope=0.05, inplace=True)
-        # h_2 = F.leaky_relu(self.e2(h_1), negative_slope=0.1, inplace=True)
-        h_2 = self.dropout(h_2)
-        # h_3 = F.leaky_relu(self.batchnorm2(self.e3(h_2)), negative_slope=0.05, inplace=True)
         h_3 = F.leaky_relu(self.e3(h_2), negative_slope=0.1, inplace=True)
-        h_3 = self.dropout(h_3)
-        # h_4 = F.leaky_relu(self.batchnorm3(self.e4(h_3)), negative_slope=0.05, inplace=True)
         h_4 = F.leaky_relu(self.e4(h_3), negative_slope=0.1, inplace=True)
-        # h_4 = self.dropout(h_4)
         y = self.e5(h_4)
-
-
         return y
 
-class Transformer(nn.Module):
+class TRN(nn.Module):
     def __init__(self):
         super(Transformer,self).__init__()
         self.encoder = Encoder().to(device)
@@ -280,120 +257,31 @@ class Transformer(nn.Module):
         enc_outputs,enc_self_attns = self.encoder(enc_inputs)
 
         dec_inputs = torch.reshape(enc_outputs,(enc_outputs.shape[0],-1)) 
-
-        # dec_outputs: [batch_size, tgt_len, d_model],
-        # dec_self_attns: [n_layers, batch_size, n_heads, tgt_len, tgt_len],
-        # dec_enc_attn: [n_layers, batch_size, n_heads,tgt_len, src_len]
         pred = self.decoder(dec_inputs)
 
         return pred
 
-criterion = nn.CrossEntropyLoss(ignore_index=0)
+# load the TRN parameters
+model_load = TRN()
+checkpoint = torch.load('model_TRN.pt')
+model_load.load_state_dict(checkpoint)
+model_load.eval()
 
-def calculate_acc(label, predict):
-    sample_num = label.shape[0]
-    index = np.argmax(predict,1)
-    acc = (index == label).sum()/sample_num
-    return acc
+# read the peptides
+test_file = 'deca_peptides.csv'
+df_test = pd.read_csv(test_file)
+test_feat = np.array(df_test["Feature"])
 
-def training(seed_id,data_size,model,optimizer):
+# predict in batches
+predict = []
+for itr in range(1000):
+    test_feat_slide = test_feat[itr*1000:(itr+1)*1000]
+    test_enc_inputs = make_data(test_feat_slide,src_len).to(device)
+    predict_test = model_load(test_enc_inputs)
+    predict = predict + predict_test.squeeze(1).cpu().detach().numpy().tolist()
 
-    # df_train = pd.read_csv('10000dataAP-pentaAPcsv-zihan.csv')
-    
-
-    # order = list(range(0,df_train.shape[0]))
-    # valid_size = int(df_train.shape[0]/10)
-    # random.shuffle(order)
-
-    # test_scale = 2000
-    # train_valid_scale = df_train.shape[0] - test_scale
-    # if data_size <= train_valid_scale:
-    #     train_valid_scale = data_size
-    
-    # valid_scale = int(train_valid_scale/5)
-    # train_scale = train_valid_scale - valid_scale
-
-    # train_order = order[test_scale+valid_scale:test_scale+valid_scale+train_scale]
-    # valid_order = order[test_scale:test_scale+valid_scale]
-
-    # train_feat = np.array(df_train["Feature"])[train_order]
-    # valid_feat = np.array(df_train["Feature"])[valid_order]
-
-    # train_enc_inputs = make_data(train_feat,src_len).to(device)
-    # valid_enc_inputs = make_data(valid_feat,src_len).to(device)
-
-    # train_label = torch.Tensor(np.array(df_train["Label"])[train_order]).to(device).unsqueeze(1)
-    # valid_label = torch.Tensor(np.array(df_train["Label"])[valid_order]).to(device).unsqueeze(1)
-
-    # train_loader = Data.DataLoader(MyDataSet(train_enc_inputs,train_label), 512, True)
-
-    # valid_best = 100
-    # loss_func = torch.nn.MSELoss()
-    # for epoch in range(200):
-    #     model.train()
-    #     for enc_inputs,labels in train_loader:
-    #         enc_inputs = enc_inputs.to(device)
-            
-    #         outputs = model(enc_inputs)
-    #         loss = loss_func(outputs, labels)
-
-    #         # print('Epoch:','%04d' % (epoch+1), 'loss =','{:.6f}'.format(loss))
-
-    #         optimizer.zero_grad()
-    #         loss.backward()
-    #         optimizer.step()
-
-    #     if (epoch+1) % 1 == 0:
-    #         model.eval()
-    #         predict = model(valid_enc_inputs)
-
-    #         MSE_valid = loss_func(predict,valid_label).item()
-
-    #         if valid_best > MSE_valid:
-    #             valid_best = MSE_valid
-    #             print('Epoch:',epoch+1)
-    #             print('Validation MSE:',MSE_valid)
-    #             torch.save(model.state_dict(),'model_{}.pt'.format(data_size))
-
-    test_files = ['3.2million_data1_A.csv','3.2million_data2_C.csv','3.2million_data3_D.csv','3.2million_data4_E.csv',
-                    '3.2million_data5_F.csv','3.2million_data6_G.csv','3.2million_data7_H.csv','3.2million_data8_I.csv',
-                    '3.2million_data9_K.csv','3.2million_data10_L.csv','3.2million_data11_M.csv','3.2million_data12_N.csv',
-                    '3.2million_data13_P.csv','3.2million_data14_Q.csv','3.2million_data15_R.csv','3.2million_data16_S.csv',
-                    '3.2million_data17_T.csv','3.2million_data18_V.csv','3.2million_data19_W.csv','3.2million_data20_Y.csv']
-
-    model_load = Transformer()
-    checkpoint = torch.load('model_{}.pt'.format(data_size))
-    model_load.load_state_dict(checkpoint)
-    model_load.eval()
-
-    file_id = 0
-    for test_file in test_files:
-        file_id = file_id + 1
-        df_test = pd.read_csv(test_file)
-        test_feat = np.array(df_test["Feature"])
-
-        predict = []
-        for itr in range(100):
-            print('We are now running file no.{} iter no.{}'.format(file_id,itr))
-            test_feat_slide = test_feat[itr*1600:(itr+1)*1600]
-            test_enc_inputs = make_data(test_feat_slide,src_len).to(device)
-            predict_test = model_load(test_enc_inputs)
-            predict = predict + predict_test.squeeze(1).cpu().detach().numpy().tolist()
-            
-        df_test_save = pd.DataFrame()
-        df_test_save['Feature'] = df_test["Feature"]
-        df_test_save['Predict'] = predict
-        df_test_save.to_csv('results/32e6_data{}.csv'.format(file_id))
-
-data_sizes = [10000000]
-seed = [5]
-
-for seed_id in seed:
-    random.seed(seed_id)
-    np.random.seed(seed_id)
-    torch.manual_seed(seed_id)
-    if torch.cuda.is_available(): torch.cuda.manual_seed(seed_id)
-    for data_size in data_sizes:
-        model = Transformer().to(device)
-        optimizer = optim.SGD(model.parameters(), lr=0.2)
-        training(seed_id,data_size,model,optimizer)
+# save file
+df_test_save = pd.DataFrame()
+df_test_save['Feature'] = df_test["Feature"]
+df_test_save['Predict'] = predict
+df_test_save.to_csv('results/AP_predict.csv')
