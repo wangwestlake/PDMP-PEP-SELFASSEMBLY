@@ -3,7 +3,7 @@ TRN trained models of AP values of penta-, deca-, and mixed pentapeptides
 
 ## User Manual
 
-The trained TRN model 'model_TRN.pt' can be accessed from the following link:
+The trained TRN model _'model_TRN.pt'_ can be accessed from the following link:
 
 https://drive.google.com/u/0/uc?id=18uxYSpFMQlAxiNkq_DKLut5cPJO7Ilu6&export=download
 
