@@ -12,4 +12,4 @@ The model file need to be downloaded and placed in the root directory.
 To predict AP value for peptides, try:
 `python AP_predict.py`
 
-Then the predicted AP value for peptided included in 'deca_peptides.csv' will be output in file 'AP_predict'.
+Then the predicted AP values for peptides included in 'deca_peptides.csv' will be output in file 'AP_predict.csv'.
