@@ -284,4 +284,4 @@ for itr in range(1000):
 df_test_save = pd.DataFrame()
 df_test_save['Feature'] = df_test["Feature"]
 df_test_save['Predict'] = predict
-df_test_save.to_csv('results/AP_predict.csv')
+df_test_save.to_csv('AP_predict.csv')
